@@ -1,6 +1,0 @@
-aiohttp
-certifi
-mss
-Pillow
-pystray
-qrcode
