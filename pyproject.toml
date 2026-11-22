@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "remote-screen"
+version = "1.0.0"
+description = "Lightweight Windows remote screen viewer and controller via Cloudflare Tunnel"
+requires-python = ">=3.11"
+dependencies = [
+    "aiohttp>=3.9",
+    "certifi>=2024.0",
+    "mss>=9.0",
+    "Pillow>=10.0",
+    "pystray>=0.19",
+    "qrcode>=7.4",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+remote_screen = ["static/*.html"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
