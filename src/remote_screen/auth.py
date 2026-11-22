@@ -9,16 +9,19 @@ import time
 from typing import Callable, Mapping
 
 
+_LOOPBACK_ADDRS = {"127.0.0.1", "::1", "::ffff:127.0.0.1"}
+
+
 def extract_client_ip(headers: Mapping[str, str], remote: str | None) -> str:
-    """Extract client IP, preferring Cloudflare's CF-Connecting-IP header."""
-    for key, value in headers.items():
-        if key.lower() == "cf-connecting-ip":
-            stripped = value.strip()
-            if stripped:
-                return stripped
-    if remote and remote.strip():
-        return remote.strip()
-    return "unknown"
+    """Extract client IP, trusting CF-Connecting-IP only over loopback tunnel proxies."""
+    remote_ip = remote.strip() if remote and remote.strip() else ""
+    if remote_ip in _LOOPBACK_ADDRS:
+        for key, value in headers.items():
+            if key.lower() == "cf-connecting-ip":
+                stripped = value.strip()
+                if stripped:
+                    return stripped
+    return remote_ip or "unknown"
 
 
 class AuthManager:

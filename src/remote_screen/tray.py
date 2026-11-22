@@ -270,7 +270,7 @@ class TrayController:
         app_name = self.state.app_name
 
         def _send() -> None:
-            ok = notify_startup(url, pin, app_name)
+            ok = notify_startup(url, pin, app_name, include_pin=self.state.pin_is_random)
             if ok:
                 self._safe_notify("已重發連線網址與 PIN 到 Telegram。")
             else:

@@ -4,13 +4,13 @@
 
 ## 主要特色
 
-- **跨網路免設定**：啟動時自動透過 `cloudflared` 建立臨時 `https://*.trycloudflare.com` 加密隧道（首次執行自動下載並快取至 `%LOCALAPPDATA%\RemoteScreen\bin\cloudflared.exe`）。
+- **跨網路免設定**：啟動時自動透過 `cloudflared` 建立臨時 `https://*.trycloudflare.com` 加密隧道（首次執行自動下載固定版本 `2026.11.1` 並驗證 SHA-256，快取至 `%LOCALAPPDATA%\RemoteScreen\bin\cloudflared.exe`）。
 - **無終端視窗系統匣運行**：打包後以 Windows GUI 子系統執行，常駐右下角系統匣，不會開啟終端機視窗，避免終端機背景造成額外 GPU 佔用。
 - **低流量動態串流**：採用 `mss` 擷取螢幕與 `Pillow` JPEG 壓縮，畫面靜止時自動略過重複傳送，並支援多 monitor DPI 縮放座標修正。
 - **完整鍵鼠與中英文輸入**：呼叫 Windows 原生 `SendInput` API，支援左鍵／雙擊／右鍵／拖拽／滾輪／常用組合鍵，以及 Unicode UTF-16LE 直接輸入中英文文字。
 - **極簡手機觸控網頁**：支援單指輕點、雙擊、長按右鍵、雙指縮放與平移，工具列可切換點擊／拖拽／滾輪模式、呼叫輸入欄、快捷鍵列與畫質切換。
-- **PIN 存取防護**：隨機產生 6 位數 PIN（或自訂密碼），搭配 `HttpOnly` Cookie 與防爆破鎖定（單一來源 IP 連續錯誤 5 次鎖定 60 秒）。
-- **選配 Telegram 通知**：可於啟動時自動將連線網址與 PIN 發送到指定 Telegram 對話，並在正常停止或異常結束時回報運行時間與操作摘要。
+- **PIN 存取防護與來源限制**：隨機產生 6 位數 PIN（或自訂密碼），搭配 `HttpOnly` Cookie 與防爆破鎖定（僅採信來自本機回環隧道的 `CF-Connecting-IP` 標頭，單一來源 IP 連續錯誤 5 次鎖定 60 秒）。
+- **選配 Telegram 通知**：啟動時可發送連線網址（固定自訂密碼不寫入明文 PIN），並在有新裝置登入（含來源 IP）、正常停止或異常結束時即時通知；本機記錄檔亦不寫入明文 PIN。
 
 ## 環境需求
 
@@ -81,7 +81,7 @@ setx REMOTE_SCREEN_TG_BOT_TOKEN "你的BotToken"
 setx REMOTE_SCREEN_TG_CHAT_ID "你的ChatID"
 ```
 
-（若未設定 `REMOTE_SCREEN_TG_BOT_TOKEN` / `REMOTE_SCREEN_TG_CHAT_ID`，程式會自動回退讀取 `TG_BOT_TOKEN` / `TG_CHAT_ID`。）
+（若未設定 `REMOTE_SCREEN_TG_BOT_TOKEN` / `REMOTE_SCREEN_TG_CHAT_ID`，程式會自動回退讀取 `TG_BOT_TOKEN` / `TG_CHAT_ID`。為降低憑證外流風險，若使用自訂固定密碼，通知訊息不會包含明文 PIN；有裝置登入成功時亦會推播來源 IP。）
 
 ### 常用命令列參數
 

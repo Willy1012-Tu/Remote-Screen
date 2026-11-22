@@ -14,7 +14,7 @@ from remote_screen.server import RemoteServer
 from remote_screen.win_input import INPUT, InputController
 
 
-def _make_test_server() -> tuple[RemoteServer, list[dict]]:
+def _make_test_server(on_login=None) -> tuple[RemoteServer, list[dict]]:
     calls: list[list[INPUT]] = []
     dispatched: list[dict] = []
 
@@ -38,13 +38,14 @@ def _make_test_server() -> tuple[RemoteServer, list[dict]]:
     auth = AuthManager(cfg.pin, max_attempts=5, lockout_seconds=60.0)
     capturer = ScreenCapturer(max_width=640, quality=60, grabber=fake_grab)
     controller = RecordingController(send_fn=fake_send)
-    srv = RemoteServer(cfg, auth, capturer, controller)
+    srv = RemoteServer(cfg, auth, capturer, controller, on_login=on_login)
     return srv, dispatched
 
 
 @pytest.mark.asyncio
 async def test_http_auth_flow_lockout_and_logout() -> None:
-    srv, _ = _make_test_server()
+    logged_in_ips: list[str] = []
+    srv, _ = _make_test_server(on_login=logged_in_ips.append)
     try:
         async with TestClient(TestServer(srv.create_app())) as client:
             health = await client.get("/api/health")
@@ -68,8 +69,9 @@ async def test_http_auth_flow_lockout_and_logout() -> None:
             assert locked.status == 429
             locked_body = await locked.json()
             assert locked_body["retry_after"] > 0
+            assert logged_in_ips == []
 
-            # Valid login from another IP succeeds and sets HttpOnly cookie
+            # Valid login from another IP succeeds, fires on_login, and sets HttpOnly cookie
             ok = await client.post(
                 "/api/login",
                 json={"pin": "246810"},
@@ -77,6 +79,7 @@ async def test_http_auth_flow_lockout_and_logout() -> None:
             )
             assert ok.status == 200
             assert ok.cookies["rs_session"]["httponly"] is True
+            assert logged_in_ips == ["198.51.100.88"]
 
             authed_idx = await client.get("/", allow_redirects=False)
             assert authed_idx.status == 200

@@ -7,7 +7,7 @@ import urllib.parse
 
 import pytest
 
-from remote_screen.notify import format_elapsed, notify_shutdown, notify_startup, send_telegram
+from remote_screen.notify import format_elapsed, notify_login, notify_shutdown, notify_startup, send_telegram
 
 
 class _DummyResponse:
@@ -103,3 +103,32 @@ def test_remote_screen_bot_token_and_chat_id_take_precedence(
             {"chat_id": ["111111111"], "text": ["hi"]},
         )
     ]
+
+
+def test_notify_startup_hides_fixed_pin_and_notify_login_alerts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("REMOTE_SCREEN_TG_BOT_TOKEN", "new:TOKEN")
+    monkeypatch.setenv("REMOTE_SCREEN_TG_CHAT_ID", "111111111")
+    sent_texts: list[str] = []
+
+    def fake_opener(req, timeout=None):
+        body = urllib.parse.parse_qs(req.data.decode("utf-8"))
+        sent_texts.append(body["text"][0])
+        return _DummyResponse()
+
+    assert (
+        notify_startup(
+            "https://abc.trycloudflare.com",
+            "SecretPin99",
+            include_pin=False,
+            opener=fake_opener,
+        )
+        is True
+    )
+    assert "SecretPin99" not in sent_texts[0]
+    assert "固定密碼" in sent_texts[0]
+
+    assert notify_login("203.0.113.9", opener=fake_opener) is True
+    assert "新裝置已登入" in sent_texts[1]
+    assert "203.0.113.9" in sent_texts[1]

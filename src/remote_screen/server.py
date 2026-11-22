@@ -6,7 +6,7 @@ import asyncio
 from dataclasses import dataclass
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from aiohttp import WSCloseCode, WSMsgType, web
 
@@ -36,12 +36,14 @@ class RemoteServer:
         capturer: ScreenCapturer,
         controller: InputController,
         static_dir: Path | None = None,
+        on_login: Callable[[str], None] | None = None,
     ) -> None:
         self.config = config
         self.auth = auth
         self.capturer = capturer
         self.controller = controller
         self.static_dir = static_dir or get_static_dir()
+        self._on_login = on_login
 
         self._clients: set[_ClientSession] = set()
         self._wake_event = asyncio.Event()
@@ -141,6 +143,11 @@ class RemoteServer:
         client_ip = extract_client_ip(request.headers, request.remote)
         ok, token, retry_after = self.auth.authenticate(client_ip, pin.strip())
         if ok and token is not None:
+            if self._on_login is not None:
+                try:
+                    self._on_login(client_ip)
+                except Exception:
+                    pass
             resp = web.json_response({"ok": True})
             resp.set_cookie(
                 SESSION_COOKIE,

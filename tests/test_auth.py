@@ -56,7 +56,9 @@ def test_load_config_pin_precedence(tmp_path: Path) -> None:
 def test_extract_client_ip_prefers_cf_connecting_ip() -> None:
     headers = {"X-Forwarded-For": "10.0.0.1", "CF-Connecting-IP": "203.0.113.42"}
     assert extract_client_ip(headers, "127.0.0.1") == "203.0.113.42"
-    assert extract_client_ip({"cf-connecting-ip": " 198.51.100.7 "}, "127.0.0.1") == "198.51.100.7"
+    assert extract_client_ip({"cf-connecting-ip": " 198.51.100.7 "}, "::1") == "198.51.100.7"
+    # Non-loopback remote cannot spoof CF-Connecting-IP
+    assert extract_client_ip({"CF-Connecting-IP": "1.2.3.4"}, "198.51.100.50") == "198.51.100.50"
     assert extract_client_ip({}, "127.0.0.1") == "127.0.0.1"
     assert extract_client_ip({}, None) == "unknown"
 

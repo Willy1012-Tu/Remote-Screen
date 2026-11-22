@@ -45,9 +45,31 @@ def test_find_and_ensure_cloudflared_atomic(tmp_path: Path) -> None:
         assert "cloudflared-windows-amd64.exe" in url
         dest.write_bytes(b"downloaded")
 
-    result = ensure_cloudflared(target_path=download_target, download_fn=fake_download)
+    import hashlib
+
+    expected = hashlib.sha256(b"downloaded").hexdigest()
+    result = ensure_cloudflared(
+        target_path=download_target,
+        download_fn=fake_download,
+        expected_sha256=expected,
+    )
     assert result == download_target
     assert download_target.read_bytes() == b"downloaded"
+
+
+def test_ensure_cloudflared_rejects_bad_sha256(tmp_path: Path) -> None:
+    target = tmp_path / "cache" / "cloudflared.exe"
+
+    def bad_download(_url: str, dest: Path) -> None:
+        dest.write_bytes(b"tampered-binary")
+
+    with pytest.raises(RuntimeError, match="SHA-256"):
+        ensure_cloudflared(
+            target_path=target,
+            download_fn=bad_download,
+            expected_sha256="0" * 64,
+        )
+    assert not target.exists()
 
 
 def test_tunnel_start_drain_and_stop_lifecycle() -> None:

@@ -63,14 +63,30 @@ def notify_startup(
     url: str,
     pin: str,
     app_name: str = "RemoteScreen.exe",
+    include_pin: bool = True,
     opener: Callable[..., Any] | None = None,
 ) -> bool:
-    """Send startup connection link and PIN to Telegram."""
+    """Send startup connection link (and optionally random PIN) to Telegram."""
+    pin_line = f"存取 PIN：{pin}" if include_pin else "存取 PIN：(已設定固定密碼，略過明文)"
     message = (
         f"[RemoteScreen] 已啟動\n"
         f"程式：{app_name}\n"
         f"連線網址：{url}\n"
-        f"存取 PIN：{pin}"
+        f"{pin_line}"
+    )
+    return send_telegram(message, timeout=5.0, opener=opener)
+
+
+def notify_login(
+    client_ip: str,
+    app_name: str = "RemoteScreen.exe",
+    opener: Callable[..., Any] | None = None,
+) -> bool:
+    """Send a Telegram alert when a client successfully authenticates."""
+    message = (
+        f"[RemoteScreen] 新裝置已登入\n"
+        f"程式：{app_name}\n"
+        f"來源 IP：{client_ip}"
     )
     return send_telegram(message, timeout=5.0, opener=opener)
 

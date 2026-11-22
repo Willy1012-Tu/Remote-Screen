@@ -19,7 +19,7 @@ import qrcode
 
 from remote_screen.auth import AuthManager
 from remote_screen.config import Config, default_log_path, get_app_dir, load_config
-from remote_screen.notify import notify_shutdown, notify_startup
+from remote_screen.notify import notify_login, notify_shutdown, notify_startup
 from remote_screen.screen import ScreenCapturer, enable_dpi_awareness
 from remote_screen.server import RemoteServer
 from remote_screen.tunnel import CloudflareTunnel, ensure_cloudflared
@@ -99,9 +99,10 @@ def _log_banner(display_url: str, cfg: Config, logger: logging.Logger, console_s
     logger.info("  RemoteScreen 遠端螢幕控制已就緒")
     logger.info("========================================================")
     logger.info("  連線網址 : %s", display_url)
-    logger.info("  存取 PIN : %s %s", cfg.pin, pin_note)
+    logger.info("  存取 PIN : ****** %s（已省略明文，請由系統匣或 Telegram 查看）", pin_note)
     logger.info("  畫質設定 : max_width=%s, quality=%s, fps=%s", cfg.max_width, cfg.quality, cfg.fps)
     if console_stream is not None:
+        print(f"  存取 PIN : {cfg.pin} {pin_note}", file=console_stream, flush=True)
         print("", file=console_stream, flush=True)
         print("  手機掃描下方 QR Code 或開啟上方網址：", file=console_stream, flush=True)
         for line in render_qr_lines(display_url, utf8_safe=_is_utf8_stream(console_stream)):
@@ -167,12 +168,21 @@ async def _run_async(
         quality=cfg.quality,
     )
     controller = InputController()
-    server = RemoteServer(cfg, auth, capturer, controller)
+    bg_tasks: set[asyncio.Task[Any]] = set()
+    loop = asyncio.get_running_loop()
+
+    def _on_login(client_ip: str) -> None:
+        logger.info("裝置已登入，來源 IP：%s", client_ip)
+        if not cfg.no_telegram:
+            task = loop.create_task(asyncio.to_thread(notify_login, client_ip, app_name))
+            bg_tasks.add(task)
+            task.add_done_callback(bg_tasks.discard)
+
+    server = RemoteServer(cfg, auth, capturer, controller, on_login=_on_login)
     tunnel: CloudflareTunnel | None = None
 
     stop_event = asyncio.Event()
     shutdown_done = threading.Event()
-    loop = asyncio.get_running_loop()
 
     def _trigger_stop() -> None:
         if not loop.is_closed():
@@ -206,9 +216,15 @@ async def _run_async(
             on_ready(display_url)
 
         if not cfg.no_telegram:
-            sent = await asyncio.to_thread(notify_startup, display_url, cfg.pin, app_name)
+            sent = await asyncio.to_thread(
+                notify_startup,
+                display_url,
+                cfg.pin,
+                app_name,
+                cfg.pin_is_random,
+            )
             if sent:
-                logger.info("  [Telegram] 已發送連線網址與 PIN。")
+                logger.info("  [Telegram] 已發送連線通知。")
 
         await stop_event.wait()
         return server.connections_total, server.actions_total

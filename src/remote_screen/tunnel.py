@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections import deque
 import ctypes
 from ctypes import wintypes
+import hashlib
+import hmac
 import logging
 import os
 from pathlib import Path
@@ -20,9 +22,12 @@ from typing import Callable, Sequence
 import urllib.request
 
 
+CLOUDFLARED_VERSION = "2026.11.1"
 CLOUDFLARED_DOWNLOAD_URL = (
-    "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe"
+    f"https://github.com/cloudflare/cloudflared/releases/download/"
+    f"{CLOUDFLARED_VERSION}/cloudflared-windows-amd64.exe"
 )
+CLOUDFLARED_SHA256 = "341deda3db5ec498a0482254d6c38c0b7cf01a30c37bb5dd95d2216d08955e35"
 TRYCLOUDFLARE_RE = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com")
 
 
@@ -168,17 +173,38 @@ def build_ssl_context() -> ssl.SSLContext:
     return ctx
 
 
-def _download_file(url: str, dest: Path) -> None:
+def verify_file_sha256(path: Path, expected_sha256: str) -> bool:
+    """Return True if path's SHA-256 hex digest matches expected_sha256."""
+    digest = hashlib.sha256()
+    with path.open("rb") as fh:
+        while True:
+            chunk = fh.read(65536)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return hmac.compare_digest(digest.hexdigest().lower(), expected_sha256.strip().lower())
+
+
+def _download_file(url: str, dest: Path, expected_sha256: str | None = CLOUDFLARED_SHA256) -> None:
     tmp = dest.with_name(f"{dest.name}.tmp")
     req = urllib.request.Request(url, headers={"User-Agent": "RemoteScreen/1.0"})
     ssl_ctx = build_ssl_context()
+    digest = hashlib.sha256() if expected_sha256 else None
     try:
         with urllib.request.urlopen(req, timeout=60, context=ssl_ctx) as resp, tmp.open("wb") as fh:
             while True:
                 chunk = resp.read(65536)
                 if not chunk:
                     break
+                if digest is not None:
+                    digest.update(chunk)
                 fh.write(chunk)
+        if expected_sha256 and digest is not None:
+            actual = digest.hexdigest().lower()
+            if not hmac.compare_digest(actual, expected_sha256.strip().lower()):
+                raise RuntimeError(
+                    f"SHA-256 mismatch for downloaded cloudflared: expected {expected_sha256}, got {actual}"
+                )
         os.replace(tmp, dest)
     except Exception:
         try:
@@ -193,8 +219,9 @@ def ensure_cloudflared(
     app_dir: Path | None = None,
     target_path: Path | None = None,
     download_fn: Callable[[str, Path], None] | None = None,
+    expected_sha256: str | None = CLOUDFLARED_SHA256,
 ) -> Path:
-    """Return path to cloudflared.exe, downloading it atomically if not found."""
+    """Return path to cloudflared.exe, downloading and verifying SHA-256 if not found."""
     if target_path is not None:
         if target_path.is_file():
             return target_path
@@ -206,9 +233,18 @@ def ensure_cloudflared(
         dest = default_cache_path()
 
     dest.parent.mkdir(parents=True, exist_ok=True)
-    downloader = download_fn or _download_file
-    logging.getLogger(__name__).info("Downloading cloudflared to %s ...", dest)
-    downloader(CLOUDFLARED_DOWNLOAD_URL, dest)
+    logging.getLogger(__name__).info("Downloading cloudflared %s to %s ...", CLOUDFLARED_VERSION, dest)
+    if download_fn is None:
+        _download_file(CLOUDFLARED_DOWNLOAD_URL, dest, expected_sha256=expected_sha256)
+    else:
+        download_fn(CLOUDFLARED_DOWNLOAD_URL, dest)
+        if expected_sha256 and dest.is_file():
+            if not verify_file_sha256(dest, expected_sha256):
+                try:
+                    dest.unlink()
+                except OSError:
+                    pass
+                raise RuntimeError("SHA-256 mismatch for downloaded cloudflared")
     if not dest.is_file():
         raise RuntimeError(f"Download completed but {dest} is missing")
     return dest

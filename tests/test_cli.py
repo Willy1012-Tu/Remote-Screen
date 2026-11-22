@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 
-from remote_screen.__main__ import _setup_logging, render_qr_lines
-from remote_screen.config import default_log_path, load_config
+from remote_screen.__main__ import _log_banner, _setup_logging, render_qr_lines
+from remote_screen.config import Config, default_log_path, load_config
 
 
 def test_render_qr_lines_utf8_and_ascii_fallback() -> None:
@@ -41,3 +41,19 @@ def test_setup_logging_writes_utf8_without_console(tmp_path: Path) -> None:
     content = log_path.read_text(encoding="utf-8")
     assert "連線網址 : https://example.trycloudflare.com" in content
     assert sys.stdout is not None
+
+
+def test_log_banner_masks_pin_in_log_file(tmp_path: Path) -> None:
+    log_path = tmp_path / "logs" / "masked.log"
+    logger = _setup_logging(log_path, console_stream=None)
+    cfg = Config(pin="987654", pin_is_random=True)
+    _log_banner("https://demo.trycloudflare.com", cfg, logger, console_stream=None)
+    for h in list(logger.handlers):
+        h.flush()
+        h.close()
+        logger.removeHandler(h)
+
+    content = log_path.read_text(encoding="utf-8")
+    assert "https://demo.trycloudflare.com" in content
+    assert "******" in content
+    assert "987654" not in content
