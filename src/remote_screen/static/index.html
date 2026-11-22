@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-Hant">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
@@ -14,7 +14,7 @@
       overflow: hidden;
       background: #0a0d12;
       color: #e6edf3;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang TC", "Microsoft JhengHei", sans-serif;
       user-select: none;
       -webkit-user-select: none;
     }
@@ -225,17 +225,17 @@
   <div class="app">
     <div class="toolbar-wrap">
       <div id="toolbar" class="toolbar">
-        <span class="status"><span id="connDot" class="dot"></span><span id="connText">连接中</span></span>
-        <button class="btn mode-btn active" data-mode="click">点击</button>
-        <button class="btn mode-btn" data-mode="drag">拖拽</button>
-        <button class="btn mode-btn" data-mode="scroll">滚轮</button>
-        <button id="rightBtn" class="btn warn">右键</button>
-        <button id="kbdToggleBtn" class="btn">键盘</button>
-        <button id="hotkeyToggleBtn" class="btn">快捷键</button>
-        <button id="qualityBtn" class="btn">标准</button>
-        <button id="refreshBtn" class="btn">刷新</button>
-        <button id="resetViewBtn" class="btn">复位</button>
-        <button id="logoutBtn" class="btn danger">退出</button>
+        <span class="status"><span id="connDot" class="dot"></span><span id="connText">連線中</span></span>
+        <button class="btn mode-btn active" data-mode="click">點擊</button>
+        <button class="btn mode-btn" data-mode="drag">拖曳</button>
+        <button class="btn mode-btn" data-mode="scroll">滾輪</button>
+        <button id="rightBtn" class="btn warn">右鍵</button>
+        <button id="kbdToggleBtn" class="btn">鍵盤</button>
+        <button id="hotkeyToggleBtn" class="btn">快捷鍵</button>
+        <button id="qualityBtn" class="btn">標準</button>
+        <button id="refreshBtn" class="btn">重新整理</button>
+        <button id="resetViewBtn" class="btn">復位</button>
+        <button id="logoutBtn" class="btn danger">登出</button>
       </div>
       <div id="hotkeyBar" class="hotkey-bar">
         <button class="btn hk" data-keys="enter">Enter</button>
@@ -251,17 +251,17 @@
         <button class="btn hk" data-keys="left">←</button>
         <button class="btn hk" data-keys="right">→</button>
       </div>
-      <button id="collapsePill" class="collapse-pill" title="收起/展开工具栏">▴</button>
+      <button id="collapsePill" class="collapse-pill" title="收合/展開工具列">▴</button>
     </div>
 
     <div id="stage" class="stage">
-      <img id="screenImg" alt="远程桌面" draggable="false" />
+      <img id="screenImg" alt="遠端桌面" draggable="false" />
     </div>
 
     <div id="keyboardBar" class="keyboard-bar">
-      <input id="textInput" type="text" placeholder="输入文字（支持中英文）..." enterkeyhint="send" />
-      <button id="sendTextBtn" type="button">发送</button>
-      <button id="sendEnterBtn" class="sec" type="button">回车</button>
+      <input id="textInput" type="text" placeholder="輸入文字（支援中英文）..." enterkeyhint="send" />
+      <button id="sendTextBtn" type="button">傳送</button>
+      <button id="sendEnterBtn" class="sec" type="button">換行</button>
     </div>
 
     <div id="toast" class="toast"></div>
@@ -295,7 +295,7 @@
     let toolbarCollapsed = false;
 
     const qualityOrder = [
-      { key: "medium", label: "标准" },
+      { key: "medium", label: "標準" },
       { key: "high", label: "清晰" },
       { key: "low", label: "省流" },
     ];
@@ -369,7 +369,7 @@
       ws.onopen = () => {
         reconnectDelay = 1000;
         connDot.classList.add("online");
-        connText.textContent = "在线";
+        connText.textContent = "在線";
       };
 
       ws.onmessage = (ev) => {
@@ -392,7 +392,7 @@
 
       ws.onclose = (ev) => {
         connDot.classList.remove("online");
-        connText.textContent = "重连中";
+        connText.textContent = "重連中";
         if (ev.code === 4401 || ev.code === 1008) {
           window.location.replace("/login");
           return;
@@ -413,7 +413,7 @@
     rightBtn.addEventListener("click", () => {
       oneShotRight = !oneShotRight;
       rightBtn.classList.toggle("active", oneShotRight);
-      showToast(oneShotRight ? "下次点击为右键" : "已取消右键");
+      showToast(oneShotRight ? "下次點擊為右鍵" : "已取消右鍵");
     });
 
     kbdToggleBtn.addEventListener("click", () => {
@@ -444,7 +444,7 @@
       const q = qualityOrder[qualityIdx];
       qualityBtn.textContent = q.label;
       sendMsg({ type: "quality", preset: q.key });
-      showToast(`画质：${q.label}`);
+      showToast(`畫質：${q.label}`);
     });
 
     refreshBtn.addEventListener("click", () => {

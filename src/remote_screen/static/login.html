@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-Hant">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>RemoteScreen 登录</title>
+  <title>RemoteScreen 登入</title>
   <style>
     * { box-sizing: border-box; }
     html, body {
@@ -12,7 +12,7 @@
       height: 100%;
       background: #0d1117;
       color: #e6edf3;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang TC", "Microsoft JhengHei", sans-serif;
     }
     body {
       display: flex;
@@ -84,7 +84,7 @@
 <body>
   <main class="card">
     <h1>RemoteScreen</h1>
-    <p class="sub">输入终端或 Telegram 收到的存取 PIN</p>
+    <p class="sub">輸入系統匣或 Telegram 收到的存取 PIN</p>
     <form id="loginForm">
       <input
         id="pinInput"
@@ -96,7 +96,7 @@
         autofocus
         required
       />
-      <button id="submitBtn" type="submit">连接</button>
+      <button id="submitBtn" type="submit">連線</button>
     </form>
     <div id="errorBox" class="error" role="alert"></div>
   </main>
@@ -119,7 +119,7 @@
           errorBox.textContent = "";
           return;
         }
-        errorBox.textContent = `尝试次数过多，请等待 ${left} 秒后再试`;
+        errorBox.textContent = `嘗試次數過多，請等待 ${left} 秒後再試`;
         left -= 1;
       };
       tick();
@@ -131,7 +131,7 @@
       if (submitBtn.disabled) return;
       const pin = pinInput.value.trim();
       if (!pin) {
-        errorBox.textContent = "请输入 PIN";
+        errorBox.textContent = "請輸入 PIN";
         return;
       }
       errorBox.textContent = "";
@@ -152,11 +152,11 @@
           return;
         }
         submitBtn.disabled = false;
-        errorBox.textContent = "PIN 不正确，请重试";
+        errorBox.textContent = "PIN 不正確，請重試";
         pinInput.select();
       } catch (err) {
         submitBtn.disabled = false;
-        errorBox.textContent = "网络异常，请重试";
+        errorBox.textContent = "網路異常，請重試";
       }
     });
   </script>

@@ -120,3 +120,48 @@ def test_rate_limit_lockout_isolation_and_reset() -> None:
     # Counter was reset: 1 wrong attempt doesn't re-lock
     ok, token, retry = auth.authenticate(ip_bad, "000000")
     assert ok is False and token is None and retry == 0
+
+
+def test_pin_stored_as_salted_pbkdf2_hash() -> None:
+    auth = AuthManager("654321")
+    assert not hasattr(auth, "_pin_bytes")
+    assert len(auth._salt) == 16
+    assert len(auth._pin_hash) == 32
+    assert b"654321" not in auth._pin_hash
+
+
+def test_global_rate_limit_blocks_distributed_ips() -> None:
+    clock = FakeClock()
+    auth = AuthManager(
+        "123456",
+        max_attempts=5,
+        lockout_seconds=60.0,
+        global_max_attempts=10,
+        global_lockout_seconds=90.0,
+        clock=clock,
+    )
+
+    for _ in range(5):
+        auth.authenticate("198.51.100.1", "000000")
+    for _ in range(4):
+        ok, token, retry = auth.authenticate("198.51.100.2", "000000")
+        assert ok is False and token is None and retry == 0
+
+    # 10th total failure triggers global lockout
+    ok, token, retry = auth.authenticate("198.51.100.2", "000000")
+    assert ok is False and token is None and retry == 90
+
+    # Fresh third IP is blocked even with valid PIN while global lockout is active
+    ok3, token3, retry3 = auth.authenticate("198.51.100.3", "123456")
+    assert ok3 is False and token3 is None and retry3 == 90
+
+    clock.advance(91.0)
+    ok3_after, token3_after, retry3_after = auth.authenticate("198.51.100.3", "123456")
+    assert ok3_after is True and token3_after is not None and retry3_after == 0
+
+
+def test_tracked_client_map_is_bounded() -> None:
+    auth = AuthManager("123456", max_tracked_clients=5, global_max_attempts=100)
+    for idx in range(10):
+        auth.authenticate(f"198.51.100.{idx}", "000000")
+    assert len(auth._failures) <= 5

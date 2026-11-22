@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
+from aiohttp import WSMsgType
 from aiohttp.test_utils import TestClient, TestServer
 import pytest
 
@@ -52,13 +53,36 @@ async def test_http_auth_flow_lockout_and_logout() -> None:
             assert health.status == 200
             assert await health.json() == {"ok": True}
 
-            # Unauthenticated / redirects to /login; /ws returns 401
+            # Unauthenticated / redirects to /login with security headers; /ws returns 401
             idx = await client.get("/", allow_redirects=False)
             assert idx.status == 302
             assert idx.headers["Location"] == "/login"
+            assert idx.headers["X-Content-Type-Options"] == "nosniff"
+            assert idx.headers["X-Frame-Options"] == "DENY"
+            assert idx.headers["Referrer-Policy"] == "no-referrer"
+            assert "default-src 'self'" in idx.headers["Content-Security-Policy"]
+
+            login_page = await client.get("/login")
+            assert login_page.status == 200
+            assert "RemoteScreen 登入" in await login_page.text()
 
             ws_unauth = await client.get("/ws")
             assert ws_unauth.status == 401
+
+            # Cross-origin / cross-site requests are blocked with 403
+            evil_login = await client.post(
+                "/api/login",
+                json={"pin": "246810"},
+                headers={"Origin": "https://evil.example"},
+            )
+            assert evil_login.status == 403
+
+            cross_site_login = await client.post(
+                "/api/login",
+                json={"pin": "246810"},
+                headers={"Sec-Fetch-Site": "cross-site"},
+            )
+            assert cross_site_login.status == 403
 
             # 4 wrong attempts for CF-Connecting-IP -> 401, 5th -> 429
             cf_headers = {"CF-Connecting-IP": "198.51.100.77"}
@@ -71,11 +95,16 @@ async def test_http_auth_flow_lockout_and_logout() -> None:
             assert locked_body["retry_after"] > 0
             assert logged_in_ips == []
 
-            # Valid login from another IP succeeds, fires on_login, and sets HttpOnly cookie
+            # Valid login with same-origin header succeeds, fires on_login, and sets HttpOnly cookie
+            same_origin = f"http://{client.host}:{client.port}"
             ok = await client.post(
                 "/api/login",
                 json={"pin": "246810"},
-                headers={"CF-Connecting-IP": "198.51.100.88"},
+                headers={
+                    "CF-Connecting-IP": "198.51.100.88",
+                    "Origin": same_origin,
+                    "Sec-Fetch-Site": "same-origin",
+                },
             )
             assert ok.status == 200
             assert ok.cookies["rs_session"]["httponly"] is True
@@ -83,11 +112,19 @@ async def test_http_auth_flow_lockout_and_logout() -> None:
 
             authed_idx = await client.get("/", allow_redirects=False)
             assert authed_idx.status == 200
+            assert "default-src 'self'" in authed_idx.headers["Content-Security-Policy"]
             html = await authed_idx.text()
             assert "RemoteScreen" in html
+            assert "點擊" in html and "登出" in html
+
+            # Cross-origin WS upgrade and logout are rejected
+            ws_evil = await client.get("/ws", headers={"Origin": "https://evil.example"})
+            assert ws_evil.status == 403
+            evil_logout = await client.post("/api/logout", headers={"Origin": "https://evil.example"})
+            assert evil_logout.status == 403
 
             # Logout invalidates session
-            out = await client.post("/api/logout")
+            out = await client.post("/api/logout", headers={"Origin": same_origin})
             assert out.status == 200
             idx_after = await client.get("/", allow_redirects=False)
             assert idx_after.status == 302
@@ -129,6 +166,16 @@ async def test_websocket_stream_and_input_dispatch() -> None:
             assert srv.capturer.quality == 45
             assert srv.connections_total == 1
             assert srv.actions_total == 3
+
+            # Open WebSocket is immediately closed on logout
+            async with client.ws_connect("/ws") as ws2:
+                _ = await ws2.receive_json(timeout=2.0)
+                _ = await ws2.receive_bytes(timeout=2.0)
+                out = await client.post("/api/logout")
+                assert out.status == 200
+                close_msg = await ws2.receive(timeout=2.0)
+                assert close_msg.type in (WSMsgType.CLOSE, WSMsgType.CLOSED)
+                assert ws2.close_code == 4401
     finally:
         await srv.stop()
         srv.capturer.close()
